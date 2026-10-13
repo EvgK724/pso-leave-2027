@@ -10,7 +10,50 @@ test('holidays excluded, transferred days and ordinary weekends included',()=>{a
 test('calendar input validation rejects impossible dates and year overflow',()=>{assert.equal(E.isDate('2027-02-29'),false);assert.equal(E.endForDays('2027-12-25',14),null);assert(E.periodError(period('2027-12-25','2028-01-07')));assert(E.periodError(period('2027-03-01','2027-03-16')));assert(E.periodError(period('2027-01-01','2027-01-08')));});
 test('whole absence including holidays blocks overlap with a colleague',()=>{let s=E.initialState();s=E.applyCommand(s,'klepikov',{type:'save',period:period('2027-03-01','2027-03-15')},now);assert.equal(E.collisions(s,'leonard',period('2027-03-08','2027-03-09')).length,1);assert.throws(()=>E.applyCommand(s,'leonard',{type:'save',period:period('2027-03-15','2027-03-20')},now),/заняты/);});
 test('nearest earlier and later recommendations preserve charged length and avoid overlap',()=>{let s=E.initialState();s=E.applyCommand(s,'klepikov',{type:'save',period:period('2027-06-10','2027-06-24')},now);const p=period('2027-06-15','2027-06-28');const out=E.suggestions(s,'leonard',p);assert.equal(out.length,2);assert(out.some(p=>p.direction===-1));assert(out.some(p=>p.direction===1));for(const q of out){assert.equal(E.leaveDays(q.start,q.end),14);assert.equal(E.collisions(s,'leonard',q).length,0);assert(q.start>=E.START&&q.end<=E.END);}});
-test('adjacent pieces cannot circumvent the 14 day continuous maximum',()=>{let s=E.initialState();s=E.applyCommand(s,'klepikov',{type:'save',period:period('2027-04-01','2027-04-14')},now);assert.throws(()=>E.applyCommand(s,'klepikov',{type:'save',period:period('2027-04-15','2027-04-28')},now),/непрерывный/);});
+test('14 plus 7 adjacent days are allowed in either entry order, while each part stays at most 14',()=>{
+ const parts=[period('2027-04-01','2027-04-14'),period('2027-04-15','2027-04-21')];
+ for(const order of [parts,[...parts].reverse()]){
+  let s=E.initialState();for(const p of order)s=E.applyCommand(s,'klepikov',{type:'save',period:p},now);
+  assert.equal(s.doctors[0].periods.length,2);assert.equal(E.totals(s.doctors[0]).used2027,21);
+  assert.throws(()=>E.applyCommand(s,'klepikov',{type:'save',period:period('2027-04-22','2027-04-22')},now),/больше 21 дня/);
+ }
+ assert.throws(()=>E.applyCommand(E.initialState(),'klepikov',{type:'save',period:period('2027-04-01','2027-04-15')},now),/Одна часть.*14/);
+});
+test('14 plus 8 or 14 adjacent days are rejected without changing saved wishes',()=>{
+ const s=E.applyCommand(E.initialState(),'klepikov',{type:'save',period:period('2027-04-01','2027-04-14')},now),saved=structuredClone(s);
+ for(const end of ['2027-04-22','2027-04-28'])assert.throws(()=>E.applyCommand(s,'klepikov',{type:'save',period:period('2027-04-15',end)},now),/больше 21 дня/);
+ assert.deepEqual(s,saved);
+});
+test('whole adjacent chains are checked when inserting or editing a bridging part',()=>{
+ let s=E.initialState();for(const p of [period('2027-04-16','2027-04-22'),period('2027-04-01','2027-04-07')])s=E.applyCommand(s,'klepikov',{type:'save',period:p},now);
+ const middle=period('2027-04-08','2027-04-14');s=E.applyCommand(s,'klepikov',{type:'save',period:middle},now);
+ assert.equal(E.totals(s.doctors[0]).used2027,21);
+ assert.throws(()=>E.applyCommand(s,'klepikov',{type:'save',period:period('2027-04-15','2027-04-15')},now),/больше 21 дня/);
+ assert.throws(()=>E.applyCommand(s,'klepikov',{type:'save',period:{...middle,end:'2027-04-15'}},now),/больше 21 дня/);
+ let adjacent=E.initialState();for(const p of [period('2027-04-15','2027-04-21'),period('2027-04-01','2027-04-07'),period('2027-04-08','2027-04-14')])adjacent=E.applyCommand(adjacent,'klepikov',{type:'save',period:p},now);
+ assert.equal(E.totals(adjacent.doctors[0]).used2027,21);
+});
+test('a calendar gap resets the run and recommendations preserve length under the 21 day cap',()=>{
+ let s=E.initialState();for(const p of [period('2027-04-01','2027-04-14'),period('2027-04-15','2027-04-21')])s=E.applyCommand(s,'klepikov',{type:'save',period:p},now);
+ const out=E.suggestions(s,'klepikov',period('2027-04-22','2027-04-28'));
+ assert.equal(out.length,2);assert.equal(out.find(p=>p.direction===1).start,'2027-04-23');
+ for(const p of out){assert.equal(E.leaveDays(p.start,p.end),7);assert.equal(E.checkCandidate(s,'klepikov',p).error,null);}
+ s=E.applyCommand(s,'klepikov',{type:'save',period:period('2027-04-23','2027-05-07')},now);
+ assert.equal(E.totals(s.doctors[0]).used2027,35);
+});
+test('2026 carryover joins 2027 days under the same continuous limit',()=>{
+ let s=E.applyCommand(E.initialState(),'klepikov',{type:'carry',days:8},now);
+ s=E.applyCommand(s,'klepikov',{type:'save',period:period('2027-04-01','2027-04-14')},now);
+ const p=period('2027-04-15','2027-04-21','2026');s=E.applyCommand(s,'klepikov',{type:'save',period:p},now);
+ assert.equal(E.totals(s.doctors[0]).used2027,14);assert.equal(E.totals(s.doctors[0]).used2026,7);
+ assert.throws(()=>E.applyCommand(s,'klepikov',{type:'save',period:{...p,end:'2027-04-22'}},now),/больше 21 дня/);
+});
+test('holidays remain uncharged within the 21 day run while all absence dates stay reserved',()=>{
+ let s=E.initialState();for(const p of [period('2027-03-01','2027-03-15'),period('2027-03-16','2027-03-22')])s=E.applyCommand(s,'klepikov',{type:'save',period:p},now);
+ assert.equal(E.totals(s.doctors[0]).used2027,21);assert.equal(E.span('2027-03-01','2027-03-22'),22);
+ assert.throws(()=>E.applyCommand(s,'klepikov',{type:'save',period:period('2027-03-23','2027-03-23')},now),/больше 21 дня/);
+ assert.throws(()=>E.applyCommand(s,'leonard',{type:'save',period:period('2027-03-08','2027-03-09')},now),/заняты/);
+});
 test('doctor cannot mutate another doctor or confirm carryover',()=>{assert.throws(()=>E.applyCommand(E.initialState(),'leonard',{type:'carry',doctorId:'klepikov',days:3}),/только свои/);assert.throws(()=>E.applyCommand(E.initialState(),'leonard',{type:'confirmCarry'}),/ЕЮ/);});
 test('carryover counted separately; positive carryover needs ЕЮ confirmation',()=>{let s=E.applyCommand(E.initialState(),'leonard',{type:'carry',days:5});assert.equal(s.doctors[4].carryConfirmed,false);s=E.applyCommand(s,'leonard',{type:'save',period:period('2027-04-01','2027-04-05','2026')});assert.equal(E.totals(s.doctors[4]).remaining2027,42);assert.equal(E.totals(s.doctors[4]).remaining2026,0);s=E.applyCommand(s,'klepikov',{type:'confirmCarry',doctorId:'leonard'});assert.equal(s.doctors[4].carryConfirmed,true);});
 test('more than 15 days total carryover is reported as impossible without weakening constraints',()=>{const s=E.applyCommand(E.initialState(),'leonard',{type:'carry',days:16});assert.equal(E.capacity(s).feasible,false);assert.equal(E.capacity(s).spare,-1);});

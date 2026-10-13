@@ -1,7 +1,7 @@
 export const YEAR = 2027;
 export const START = '2027-01-01', END = '2027-12-31';
 export const DEADLINE = '2026-10-31';
-export const BASE_DAYS = 42, MAX_PART = 14;
+export const BASE_DAYS = 42, MAX_PART = 14, MAX_CONTINUOUS = 21;
 export const PEOPLE = [
   ['klepikov','Клепиков Е.Ю.'],['kardashina','Кардашина К.К.'],['lekerova','Лекерова Д.С.'],
   ['khamatnurova','Хаматнурова А.А.'],['leonard','Леонард Т.В.'],['alekeshova','Алекешова Г.Ж.'],
@@ -78,7 +78,7 @@ export function consecutiveError(periods) {
   for(const p of ordered) {
     if(run&&p.start<=addDays(run.end,1)) { run.end=p.end>run.end?p.end:run.end; }
     else run={start:p.start,end:p.end};
-    if(leaveDays(run.start,run.end)>MAX_PART) return 'Соседние части образуют непрерывный отпуск больше 14 дней. Оставьте разрыв между ними.';
+    if(leaveDays(run.start,run.end)>MAX_CONTINUOUS) return 'Соседние части образуют непрерывный отпуск больше 21 дня. Оставьте хотя бы один день разрыва между ними.';
   }
   return null;
 }

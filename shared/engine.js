@@ -2,6 +2,7 @@ export const YEAR = 2027;
 export const START = '2027-01-01', END = '2027-12-31';
 export const DEADLINE = '2026-10-31';
 export const BASE_DAYS = 42, MAX_PART = 14, MAX_CONTINUOUS = 21;
+export const MAX_CARRYOVER_OVERLAP = 3;
 export const PEOPLE = [
   ['klepikov','Клепиков Е.Ю.'],['kardashina','Кардашина К.К.'],['lekerova','Лекерова Д.С.'],
   ['khamatnurova','Хаматнурова А.А.'],['leonard','Леонард Т.В.'],['alekeshova','Алекешова Г.Ж.'],
@@ -57,7 +58,8 @@ export function totals(d) {
 export function capacity(state) {
   const available=leaveDays(START,END),carry=state.doctors.reduce((n,d)=>n+(d.carryover??0),0);
   const needed=state.doctors.length*BASE_DAYS+carry;
-  return {available,needed,carry,spare:available-needed,unknown:state.doctors.filter(d=>d.carryover===null).length,feasible:needed<=available};
+  const overlapPlanned=overlapCheck(state.doctors).dates.filter(s=>!HOLIDAYS[s]).length;
+  return {available,needed,carry,spare:available-needed,unknown:state.doctors.filter(d=>d.carryover===null).length,overlapNeeded:Math.max(0,needed-available),overlapPlanned};
 }
 export function overlaps(a,b) { return a.start<=b.end&&b.start<=a.end; }
 export function periodError(p) {
@@ -72,6 +74,35 @@ export function periodError(p) {
 export function collisions(state,doctorId,p,excludeId=null) {
   return state.doctors.flatMap(d=>d.periods.filter(q=>q.id!==excludeId&&overlaps(p,q)).map(q=>({doctor:d.id,name:d.name,...q})));
 }
+export function overlapCheck(doctors,focus=null) {
+  const entries=doctors.flatMap(d=>d.periods.map(p=>({doctor:d.id,name:d.name,period:p})));
+  const groups=[],groupFor=new Map(),allDates=new Set(),focusDates=new Set(),focusOthers=new Set();
+  const asConflicts=items=>[...new Set(items)].filter(e=>e.period!==focus).map(e=>({doctor:e.doctor,name:e.name,...e.period}));
+  const result=(error=null,conflicts=[])=>({error,conflicts,overlapDays:focusDates.size,overlaps:asConflicts(focusOthers),dates:[...allDates].sort()});
+  // Adjacent carryover parts share one overlap allowance; splitting a run cannot multiply it.
+  for(const d of doctors){
+    let group=null;
+    for(const e of entries.filter(e=>e.doctor===d.id&&e.period.source==='2026').sort((a,b)=>a.period.start.localeCompare(b.period.start))){
+      const p=e.period;
+      if(!group||p.start>addDays(group.end,1)){group={name:d.name,end:p.end,entries:[],others:new Set(),dates:new Set()};groups.push(group);}
+      else if(p.end>group.end)group.end=p.end;
+      group.entries.push(e);groupFor.set(e,group);
+    }
+  }
+  for(let i=0;i<entries.length;i++)for(let j=i+1;j<entries.length;j++){
+    const a=entries[i],b=entries[j],p=a.period,q=b.period;
+    if(!overlaps(p,q))continue;
+    if(a.doctor===b.doctor)return result('Эти даты уже заняты вашим отпуском. Части одного врача не могут пересекаться.',asConflicts([a,b]));
+    if(p.source===q.source)return result(`Эти даты уже заняты. Отпуска за ${p.source} год разных врачей не могут пересекаться.`,asConflicts([a,b]));
+    const carry=p.source==='2026'?a:b,other=carry===a?b:a,group=groupFor.get(carry);
+    const shared=dates(p.start>q.start?p.start:q.start,p.end<q.end?p.end:q.end);
+    for(const day of shared){group.dates.add(day);allDates.add(day);if(p===focus||q===focus)focusDates.add(day);}
+    group.others.add(other);
+    if(p===focus)focusOthers.add(b);if(q===focus)focusOthers.add(a);
+  }
+  for(const g of groups)if(g.dates.size>MAX_CARRYOVER_OVERLAP)return result(`${g.name}: пересечение остатка с 2026 года составляет ${g.dates.size} календ. дн. Допустимо не более 3 календарных дней на непрерывный период остатка, включая соседние части.`,asConflicts([...g.entries,...g.others]));
+  return result();
+}
 export function consecutiveError(periods) {
   const ordered=[...periods].sort((a,b)=>a.start.localeCompare(b.start));
   let run=null;
@@ -84,16 +115,16 @@ export function consecutiveError(periods) {
 }
 export function checkCandidate(state,doctorId,p,excludeId=null) {
   const error=periodError(p); if(error) return {error,conflicts:[]};
-  const conflicts=collisions(state,doctorId,p,excludeId);
-  if(conflicts.length) return {error:'Эти даты уже заняты.',conflicts};
   const d=state.doctors.find(d=>d.id===doctorId);
   const periods=[...d.periods.filter(q=>q.id!==excludeId),p];
+  const check=overlapCheck(state.doctors.map(x=>x.id===doctorId?{...x,periods}:x),p);
+  if(check.error)return check;
   const adjacent=consecutiveError(periods); if(adjacent) return {error:adjacent,conflicts:[]};
   const t=totals({...d,periods});
   if(t.remaining2027<0) return {error:'Превышены 42 дня за 2027 год.',conflicts:[]};
   if(p.source==='2026'&&d.carryover===null) return {error:'Сначала укажите остаток с 2026 года.',conflicts:[]};
   if(t.remaining2026<0) return {error:'Превышен указанный остаток с 2026 года.',conflicts:[]};
-  return {error:null,conflicts:[]};
+  return check;
 }
 export function suggestions(state,doctorId,p,excludeId=null) {
   if(periodError(p)) return [];
@@ -117,7 +148,7 @@ export function completionIssues(d) {
   return errors;
 }
 export function ready(state) {
-  return capacity(state).feasible && state.doctors.every(d=>d.submitted&&d.carryConfirmed&&completionIssues(d).length===0);
+  return state.doctors.every(d=>d.submitted&&d.carryConfirmed&&completionIssues(d).length===0)&&!overlapCheck(state.doctors).error;
 }
 export function status(d) { return d.submitted?(d.carryConfirmed?'Готово':'Остаток на согласовании'):(d.periods.length?'Заполняет':'Не заполнено'); }
 export function progress(state) { const done=state.doctors.filter(d=>d.submitted).length;return {done,total:state.doctors.length,left:state.doctors.length-done,unconfirmed:state.doctors.filter(d=>d.carryover>0&&!d.carryConfirmed).length}; }
@@ -146,7 +177,7 @@ export function applyCommand(original,actor,cmd,now=new Date().toISOString()) {
   } else if(cmd.type==='delete') { d.periods=d.periods.filter(p=>p.id!==cmd.id);
   } else if(cmd.type==='submit') {
     const issues=completionIssues(d);if(issues.length) throw new Error(issues.join(' '));
-    if(!capacity(state).feasible) throw new Error('Все отпуска не помещаются в 2027 год без пересечений. Нужен пересмотр условий с ЕЮ.');
+    const overlap=overlapCheck(state.doctors);if(overlap.error)throw new Error(overlap.error);
     d.submitted=true;d.submittedAt=now;
     const count=progress(state);event(state,'submitted',`${d.name} завершил(а) пожелания. Готово ${count.done} из ${count.total}; осталось ${count.left}.`,['klepikov'],now);
   } else if(cmd.type==='withdraw') {

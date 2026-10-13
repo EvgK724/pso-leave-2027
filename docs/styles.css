@@ -14,3 +14,5 @@
 .doctor-row{grid-template-columns:auto minmax(0,1fr);column-gap:13px;row-gap:4px}.doctor-row .count{grid-column:2;text-align:left;white-space:normal;display:flex;align-items:baseline;gap:.5em;flex-wrap:wrap}.doctor-row .count small{display:inline}.doctor-row>div{min-width:0}
 
 h1,h2,h3{overflow-wrap:anywhere}.avatar{min-width:max(38px,2.1em);height:max(38px,2.1em)}.brand-icon{width:max(44px,1.5em);height:max(44px,1.5em);flex-shrink:0}.period-index{width:max(34px,1.9em);height:max(38px,2.2em)}
+
+.month-overlaps{margin-top:18px;padding:15px;border:1px solid #824653;border-radius:12px;background:#331d2855;color:#ff9da5;font-size:calc(var(--ui-size) * 0.9375);line-height:1.5;overflow-wrap:anywhere}.month-overlaps h3{color:inherit;margin-bottom:10px}.month-overlaps ul{list-style:none;margin:0;padding:0}.month-overlaps li{margin:0}.month-overlaps li+li{border-top:1px solid #82465380;margin-top:12px;padding-top:12px}.month-overlaps strong,.month-overlaps span{display:block}.month-overlaps strong{font-weight:600;margin-bottom:4px}

@@ -1,5 +1,5 @@
 import webpush from 'npm:web-push@3.6.7';
-import {applyCommand,calendarICS,initialState,PEOPLE,todayYekaterinburg} from '../_shared/engine.js';
+import {applyCommand,calendarICS,initialState,withDoctorNames,PEOPLE,todayYekaterinburg} from '../_shared/engine.js';
 const APP='https://evgk724.github.io/pso-leave-2027/';
 const ORIGIN=new URL(APP).origin;
 const base=Deno.env.get('SUPABASE_URL')!;
@@ -10,7 +10,7 @@ async function db(path:string,method='GET',body?:unknown,extra={}){
 }
 const encoded=(s:string)=>encodeURIComponent(s);
 const random=()=>Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,'0')).join('');
-async function getState(){let rows=await db('leave2027_state?id=eq.1');if(!rows.length){await db('leave2027_state','POST',{id:1,version:0,state:initialState()},{Prefer:'resolution=ignore-duplicates,return=representation'});rows=await db('leave2027_state?id=eq.1');}return rows[0].state;}
+async function getState(){let rows=await db('leave2027_state?id=eq.1');if(!rows.length){await db('leave2027_state','POST',{id:1,version:0,state:initialState()},{Prefer:'resolution=ignore-duplicates,return=representation'});rows=await db('leave2027_state?id=eq.1');}return withDoctorNames(rows[0].state);}
 async function setting(key:string){return (await db('leave2027_settings?key=eq.'+encoded(key)))[0]?.value;}
 async function vapid(){let key=await setting('vapid');if(!key){const generated=webpush.generateVAPIDKeys();await db('leave2027_settings','POST',{key:'vapid',value:generated},{Prefer:'resolution=ignore-duplicates,return=representation'});key=await setting('vapid');}return key;}
 async function authenticate(token:string,kind='access'){

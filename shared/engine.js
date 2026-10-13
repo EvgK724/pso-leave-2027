@@ -3,9 +3,9 @@ export const START = '2027-01-01', END = '2027-12-31';
 export const DEADLINE = '2026-10-31';
 export const BASE_DAYS = 42, MAX_PART = 14;
 export const PEOPLE = [
-  ['klepikov','Клепиков'],['kardashina','Кардашина'],['lekerova','Лекерова'],
-  ['khamatnurova','Хаматнурова'],['leonard','Леонард'],['alekeshova','Алекешова'],
-  ['davydova','Давыдова'],['omutov','Омутов']
+  ['klepikov','Клепиков Е.Ю.'],['kardashina','Кардашина К.К.'],['lekerova','Лекерова Д.С.'],
+  ['khamatnurova','Хаматнурова А.А.'],['leonard','Леонард Т.В.'],['alekeshova','Алекешова Г.Ж.'],
+  ['davydova','Давыдова Н.В.'],['omutov','Омутов М.Ю.']
 ];
 export const HOLIDAYS = Object.freeze({
   '2027-01-01':'Новогодние каникулы','2027-01-02':'Новогодние каникулы',
@@ -41,6 +41,13 @@ export const isDayOff=s=>!!HOLIDAYS[s]||!!TRANSFERRED[s]||(!WORKING_WEEKENDS.inc
 export const uid=()=>crypto.randomUUID();
 export function initialState() {
   return {schema:1,version:0,doctors:PEOPLE.map(([id,name])=>({id,name,carryover:null,carryConfirmed:false,periods:[],submitted:false,submittedAt:null})),events:[],final:null};
+}
+export function withDoctorNames(original) {
+  const state=structuredClone(original),names=new Map(PEOPLE);
+  for(const list of [state.doctors,state.final?.doctors]) {
+    for(const d of list??[]) if(names.has(d.id)) d.name=names.get(d.id);
+  }
+  return state;
 }
 export function totals(d) {
   const used2027=d.periods.filter(p=>p.source==='2027').reduce((n,p)=>n+leaveDays(p.start,p.end),0);
@@ -116,7 +123,7 @@ export function status(d) { return d.submitted?(d.carryConfirmed?'Готово':
 export function progress(state) { const done=state.doctors.filter(d=>d.submitted).length;return {done,total:state.doctors.length,left:state.doctors.length-done,unconfirmed:state.doctors.filter(d=>d.carryover>0&&!d.carryConfirmed).length}; }
 function event(state,type,text,to,now) { state.events.push({id:uid(),type,text,to,at:now});state.events=state.events.slice(-200); }
 export function applyCommand(original,actor,cmd,now=new Date().toISOString()) {
-  const state=structuredClone(original);
+  const state=withDoctorNames(original);
   const admin=actor==='klepikov';
   const own=state.doctors.find(d=>d.id===actor);
   if(!own) throw new Error('Откройте приложение по своей ссылке.');
@@ -170,11 +177,12 @@ export function reminderDue(d,lastAt,now=new Date()) {
 export const REMINDER='Коллега, пожалуйста, когда будет удобно, внесите пожелания по отпуску на 2027 год до 1 ноября. Спасибо! ЕЮ';
 export function rowsForExport(state) {
   if(!state.final) throw new Error('Итоговый график ещё не сформирован.');
-  return state.final.doctors.flatMap(d=>d.periods.map((p,i)=>({name:d.name,part:i+1,start:p.start,end:p.end,days:leaveDays(p.start,p.end),span:span(p.start,p.end),source:p.source}))).sort((a,b)=>a.name.localeCompare(b.name,'ru')||a.start.localeCompare(b.start));
+  return withDoctorNames(state).final.doctors.flatMap(d=>d.periods.map((p,i)=>({name:d.name,part:i+1,start:p.start,end:p.end,days:leaveDays(p.start,p.end),span:span(p.start,p.end),source:p.source}))).sort((a,b)=>a.name.localeCompare(b.name,'ru')||a.start.localeCompare(b.start));
 }
 const icsEscape=s=>String(s).replace(/\\/g,'\\\\').replace(/\n/g,'\\n').replace(/,/g,'\\,').replace(/;/g,'\\;');
 function foldLine(s) {let lines=[],line='',length=0;for(const c of s){const n=new TextEncoder().encode(c).length;if(length+n>73){lines.push(line);line=' ';length=1;}line+=c;length+=n;}lines.push(line);return lines.join('\r\n');}
 export function calendarICS(state,doctorId,{tasks=false,now=new Date().toISOString()}={}) {
+  state=withDoctorNames(state);
   const d=state.doctors.find(x=>x.id===doctorId);if(!d) throw new Error('Врач не найден.');
   const stamp=now.replace(/[-:]/g,'').replace(/\.\d{3}/,'');
   const out=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//PSO//Leave 2027//RU','CALSCALE:GREGORIAN','METHOD:PUBLISH','X-WR-CALNAME:Мой отпуск · ПСО 2027','REFRESH-INTERVAL;VALUE=DURATION:PT6H','X-PUBLISHED-TTL:PT6H'];
@@ -186,6 +194,6 @@ export function calendarICS(state,doctorId,{tasks=false,now=new Date().toISOStri
   return out.concat('END:VCALENDAR').map(foldLine).join('\r\n')+'\r\n';
 }
 export function csvExport(state) {
-  const data=[['Фамилия','Часть','Начало','Окончание','Дней отпуска','Дней отсутствия','За какой год'],...rowsForExport(state).map(r=>[r.name,r.part,r.start,r.end,r.days,r.span,r.source])];
+  const data=[['Врач','Часть','Начало','Окончание','Дней отпуска','Дней отсутствия','За какой год'],...rowsForExport(state).map(r=>[r.name,r.part,r.start,r.end,r.days,r.span,r.source])];
   return '\ufeff'+data.map(row=>row.map(x=>'"'+String(x).replaceAll('"','""')+'"').join(';')).join('\r\n');
 }

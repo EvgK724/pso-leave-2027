@@ -1,4 +1,4 @@
-const CACHE='pso-leave-2027-v5';
+const CACHE='pso-leave-2027-v6';
 const ASSETS=['./','./index.html','./app.js','./engine.js','./styles.css','./config.js','./manifest.webmanifest','./icon-192.png','./icon-512.png','./icon-180.png','./icon.svg'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('pso-leave-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});

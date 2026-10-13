@@ -18,15 +18,45 @@ test('one to three calendar days of 2026/2027 overlap work in either entry order
   }
  }
 });
-test('same-year overlaps, self-overlaps and a third doctor on the same date remain forbidden',()=>{
+test('same-year overlaps and self-overlaps remain forbidden',()=>{
  let s=withCarry('leonard',4);s=save(s,'klepikov',period('2027-04-01','2027-04-14'));s=save(s,'leonard',period('2027-04-12','2027-04-15','2026'));
  s=E.applyCommand(s,'lekerova',{type:'carry',days:3});
  for(const [actor,p] of [
-  ['lekerova',period('2027-04-13','2027-04-15','2026')],
-  ['lekerova',period('2027-04-13','2027-04-15')],
+  ['lekerova',period('2027-04-15','2027-04-15','2026')],
+  ['lekerova',period('2027-04-01','2027-04-02')],
   ['leonard',period('2027-04-15','2027-04-15')],
   ['klepikov',period('2027-04-01','2027-04-02')]
  ])assert.throws(()=>save(s,actor,p),/заняты/);
+});
+test('a third doctor is rejected for either source year, even for one shared day or a holiday',()=>{
+ for(const holiday of [false,true])for(const source of ['2026','2027']){
+  let s=withCarry('leonard',4);
+  const annual=holiday?period('2027-03-01','2027-03-08'):period('2027-04-01','2027-04-14');
+  const carry=holiday?period('2027-03-08','2027-03-09','2026'):period('2027-04-12','2027-04-15','2026');
+  s=save(s,'klepikov',annual);s=save(s,'leonard',carry);
+  s=E.applyCommand(s,'lekerova',{type:'carry',days:3});
+  const before=structuredClone(s),p=holiday?period('2027-03-08','2027-03-09',source):period('2027-04-13','2027-04-13',source);
+  const check=E.checkCandidate(s,'lekerova',p);
+  assert.match(check.error,/одновременно допускается не более 2 врачей/);
+  assert(check.error.startsWith(E.formatDate(p.start)));
+  assert.deepEqual(check.conflicts.map(c=>c.doctor).sort(),['klepikov','leonard']);
+  assert.throws(()=>save(s,'lekerova',p),/не более 2 врачей/);
+  assert.deepEqual(s,before);
+ }
+});
+test('recommendations for a third doctor retain the source year and all previous overlap limits',()=>{
+ let s=withCarry('leonard',4);s=save(s,'klepikov',period('2027-04-01','2027-04-14'));s=save(s,'leonard',period('2027-04-12','2027-04-15','2026'));
+ s=E.applyCommand(s,'lekerova',{type:'carry',days:3});
+ for(const source of ['2026','2027']){
+  const p=period('2027-04-13','2027-04-15',source),out=E.suggestions(s,'lekerova',p);
+  assert.equal(out.length,2);assert.deepEqual(out.map(q=>q.direction).sort(),[-1,1]);
+  for(const q of out){
+   assert.equal(q.source,source);assert.equal(E.leaveDays(q.start,q.end),3);
+   assert.equal(E.checkCandidate(s,'lekerova',q).error,null);
+   const next=save(s,'lekerova',q);
+   for(const day of E.dates(q.start,q.end))assert(next.doctors.filter(d=>d.periods.some(r=>r.start<=day&&day<=r.end)).length<=2);
+  }
+ }
 });
 test('overlaps at both ends with different colleagues share the three-day allowance',()=>{
  let s=withCarry('leonard',7);s=save(s,'leonard',period('2027-04-10','2027-04-16','2026'));

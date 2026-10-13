@@ -2,7 +2,7 @@ export const YEAR = 2027;
 export const START = '2027-01-01', END = '2027-12-31';
 export const DEADLINE = '2026-10-31';
 export const BASE_DAYS = 42, MAX_PART = 14, MAX_CONTINUOUS = 21;
-export const MAX_CARRYOVER_OVERLAP = 3;
+export const MAX_CARRYOVER_OVERLAP = 3, MAX_SIMULTANEOUS_DOCTORS = 2;
 export const PEOPLE = [
   ['klepikov','Клепиков Е.Ю.'],['kardashina','Кардашина К.К.'],['lekerova','Лекерова Д.С.'],
   ['khamatnurova','Хаматнурова А.А.'],['leonard','Леонард Т.В.'],['alekeshova','Алекешова Г.Ж.'],
@@ -79,6 +79,15 @@ export function overlapCheck(doctors,focus=null) {
   const groups=[],groupFor=new Map(),allDates=new Set(),focusDates=new Set(),focusOthers=new Set();
   const asConflicts=items=>[...new Set(items)].filter(e=>e.period!==focus).map(e=>({doctor:e.doctor,name:e.name,...e.period}));
   const result=(error=null,conflicts=[])=>({error,conflicts,overlapDays:focusDates.size,overlaps:asConflicts(focusOthers),dates:[...allDates].sort()});
+  // The limit applies to simultaneous absence on each calendar date, including holidays.
+  const byDay=new Map();
+  for(const e of entries)for(const day of dates(e.period.start,e.period.end)){
+    if(!byDay.has(day))byDay.set(day,[]);
+    byDay.get(day).push(e);
+  }
+  for(const [day,people] of [...byDay].sort(([a],[b])=>a.localeCompare(b))){
+    if(new Set(people.map(e=>e.doctor)).size>MAX_SIMULTANEOUS_DOCTORS)return result(`${formatDate(day)}: одновременно допускается не более 2 врачей. Пересекаться могут только остаток 2026 и отпуск 2027 в пределах 3 календарных дней.`,asConflicts(people));
+  }
   // Adjacent carryover parts share one overlap allowance; splitting a run cannot multiply it.
   for(const d of doctors){
     let group=null;

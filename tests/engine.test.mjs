@@ -1,15 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as E from '../shared/engine.js';
+import {fixture} from './fixtures.mjs';
 const now='2026-10-13T04:00:00.000Z';
 const period=(start,end,source='2027')=>({id:crypto.randomUUID(),start,end,source});
-function fixture(){let s=E.initialState();for(const d of s.doctors)s=E.applyCommand(s,d.id,{type:'carry',days:0},now);let start='2027-01-09';for(let round=0;round<3;round++)for(const d of s.doctors){const end=E.endForDays(start,14);s=E.applyCommand(s,d.id,{type:'save',period:period(start,end)},now);start=E.addDays(end,1);}return s;}
 test('exact roster contains all eight; no telephone data',()=>{assert.equal(E.PEOPLE.length,8);assert(E.PEOPLE.some(x=>x[1]==='Давыдова Н.В.'));assert(!/\d{10}/.test(JSON.stringify(E.PEOPLE)));});
 test('Russia 2027 has 351 chargeable dates and 15 carryover days without overlaps',()=>{assert.equal(Object.keys(E.HOLIDAYS).length,14);assert.deepEqual(E.capacity(E.initialState()),{available:351,needed:336,carry:0,spare:15,unknown:8,overlapNeeded:0,overlapPlanned:0});});
 test('holidays excluded, transferred days and ordinary weekends included',()=>{assert.equal(E.leaveDays('2027-01-01','2027-01-08'),0);assert.equal(E.endForDays('2027-03-01',14),'2027-03-15');assert.equal(E.leaveDays('2027-11-04','2027-11-07'),3);assert.equal(E.leaveDays('2027-05-01','2027-05-03'),2);assert.equal(E.isDayOff('2027-02-20'),false);assert.equal(E.isDayOff('2027-02-22'),true);});
 test('calendar input validation rejects impossible dates and year overflow',()=>{assert.equal(E.isDate('2027-02-29'),false);assert.equal(E.endForDays('2027-12-25',14),null);assert(E.periodError(period('2027-12-25','2028-01-07')));assert(E.periodError(period('2027-03-01','2027-03-16')));assert(E.periodError(period('2027-01-01','2027-01-08')));});
-test('whole absence including holidays blocks overlap with a colleague',()=>{let s=E.initialState();s=E.applyCommand(s,'klepikov',{type:'save',period:period('2027-03-01','2027-03-15')},now);assert.equal(E.collisions(s,'leonard',period('2027-03-08','2027-03-09')).length,1);assert.throws(()=>E.applyCommand(s,'leonard',{type:'save',period:period('2027-03-15','2027-03-20')},now),/заняты/);});
-test('nearest earlier and later recommendations preserve charged length and avoid overlap',()=>{let s=E.initialState();s=E.applyCommand(s,'klepikov',{type:'save',period:period('2027-06-10','2027-06-24')},now);const p=period('2027-06-15','2027-06-28');const out=E.suggestions(s,'leonard',p);assert.equal(out.length,2);assert(out.some(p=>p.direction===-1));assert(out.some(p=>p.direction===1));for(const q of out){assert.equal(E.leaveDays(q.start,q.end),14);assert.equal(E.collisions(s,'leonard',q).length,0);assert(q.start>=E.START&&q.end<=E.END);}});
+test('whole absence including holidays blocks overlap with a colleague',()=>{let s=E.initialState();s=E.applyCommand(s,'klepikov',{type:'save',period:period('2027-03-01','2027-03-15')},now);assert.equal(E.collisions(s,'omutov',period('2027-03-08','2027-03-09')).length,1);assert.throws(()=>E.applyCommand(s,'omutov',{type:'save',period:period('2027-03-15','2027-03-20')},now),/заняты/);});
+test('nearest earlier and later recommendations preserve charged length and avoid overlap',()=>{let s=E.initialState();s=E.applyCommand(s,'klepikov',{type:'save',period:period('2027-06-10','2027-06-24')},now);const p=period('2027-06-15','2027-06-28');const out=E.suggestions(s,'omutov',p);assert.equal(out.length,2);assert(out.some(p=>p.direction===-1));assert(out.some(p=>p.direction===1));for(const q of out){assert.equal(E.leaveDays(q.start,q.end),14);assert.equal(E.collisions(s,'omutov',q).length,0);assert(q.start>=E.START&&q.end<=E.END);}});
 test('14 plus 7 adjacent days are allowed in either entry order, while each part stays at most 14',()=>{
  const parts=[period('2027-04-01','2027-04-14'),period('2027-04-15','2027-04-21')];
  for(const order of [parts,[...parts].reverse()]){
@@ -52,7 +52,7 @@ test('holidays remain uncharged within the 21 day run while all absence dates st
  let s=E.initialState();for(const p of [period('2027-03-01','2027-03-15'),period('2027-03-16','2027-03-22')])s=E.applyCommand(s,'klepikov',{type:'save',period:p},now);
  assert.equal(E.totals(s.doctors[0]).used2027,21);assert.equal(E.span('2027-03-01','2027-03-22'),22);
  assert.throws(()=>E.applyCommand(s,'klepikov',{type:'save',period:period('2027-03-23','2027-03-23')},now),/больше 21 дня/);
- assert.throws(()=>E.applyCommand(s,'leonard',{type:'save',period:period('2027-03-08','2027-03-09')},now),/заняты/);
+ assert.throws(()=>E.applyCommand(s,'omutov',{type:'save',period:period('2027-03-08','2027-03-09')},now),/заняты/);
 });
 test('doctor cannot mutate another doctor or confirm carryover',()=>{assert.throws(()=>E.applyCommand(E.initialState(),'leonard',{type:'carry',doctorId:'klepikov',days:3}),/только свои/);assert.throws(()=>E.applyCommand(E.initialState(),'leonard',{type:'confirmCarry'}),/ЕЮ/);});
 test('carryover counted separately; positive carryover needs ЕЮ confirmation',()=>{let s=E.applyCommand(E.initialState(),'leonard',{type:'carry',days:5});assert.equal(s.doctors[4].carryConfirmed,false);s=E.applyCommand(s,'leonard',{type:'save',period:period('2027-04-01','2027-04-05','2026')});assert.equal(E.totals(s.doctors[4]).remaining2027,42);assert.equal(E.totals(s.doctors[4]).remaining2026,0);s=E.applyCommand(s,'klepikov',{type:'confirmCarry',doctorId:'leonard'});assert.equal(s.doctors[4].carryConfirmed,true);});
@@ -67,3 +67,4 @@ test('final exports are unavailable before completion',()=>{assert.throws(()=>E.
 export {fixture};
 
 test('existing wishes and final dates survive adding initials to stored profiles',()=>{let legacy=fixture();for(const d of legacy.doctors)legacy=E.applyCommand(legacy,d.id,{type:'submit'},now);for(const list of [legacy.doctors,legacy.final.doctors])for(const d of list)d.name=d.name.split(' ')[0];const saved=structuredClone(legacy),updated=E.withDoctorNames(legacy);assert.deepEqual(legacy,saved);assert.equal(updated.version,legacy.version);assert.deepEqual(updated.doctors.map(d=>d.periods),legacy.doctors.map(d=>d.periods));assert.deepEqual(updated.final.doctors.map(d=>d.periods),legacy.final.doctors.map(d=>d.periods));assert.equal(updated.doctors.find(d=>d.id==='khamatnurova').name,'Хаматнурова А.А.');assert(E.csvExport(legacy).includes('Лекерова Д.С.'));assert(E.calendarICS(legacy,'klepikov',{now}).includes('Клепиков Е.Ю.'));});
+

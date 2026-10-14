@@ -63,7 +63,7 @@ begin
   if (d->>'submitted')::boolean then continue;end if;
   select on_date into last_date from public.leave2027_reminded where doctor_id=d->>'id';
   if last_date is not null and today<last_date+3 then continue;end if;
-  ev:=jsonb_build_object('id',gen_random_uuid()::text,'type','reminder','text','Коллега, пожалуйста, когда будет удобно, внесите пожелания по отпуску на 2027 год до 1 ноября. Спасибо! ЕЮ','to',jsonb_build_array(d->>'id'),'at',to_char(now() at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"'));
+  ev:=jsonb_build_object('id',gen_random_uuid()::text,'type','reminder','text','Пожалуйста, когда будет удобно, внесите пожелания по отпуску на 2027 год до 1 ноября. Спасибо! ЕЮ','to',jsonb_build_array(d->>'id'),'at',to_char(now() at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"'));
   s:=jsonb_set(s,'{events}',(s->'events')||jsonb_build_array(ev));
   insert into public.leave2027_outbox(id,doctor_id,payload) values(ev->>'id'||':'||(d->>'id'),d->>'id',ev) on conflict do nothing;
   insert into public.leave2027_reminded(doctor_id,on_date) values(d->>'id',today) on conflict(doctor_id) do update set on_date=excluded.on_date;
@@ -74,3 +74,4 @@ begin
 end;$$;
 revoke all on function public.leave2027_reminders() from public,anon,authenticated;
 grant execute on function public.leave2027_reminders() to service_role;
+

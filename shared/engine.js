@@ -233,7 +233,7 @@ export function reminderDue(d,lastAt,now=new Date()) {
   if(today<'2026-10-13'||today>DEADLINE||d.submitted) return false;
   return !lastAt||today>=addDays(lastAt.slice(0,10),3);
 }
-export const REMINDER='Коллега, пожалуйста, когда будет удобно, внесите пожелания по отпуску на 2027 год до 1 ноября. Спасибо! ЕЮ';
+export const REMINDER='Пожалуйста, когда будет удобно, внесите пожелания по отпуску на 2027 год до 1 ноября. Спасибо! ЕЮ';
 export function rowsForExport(state) {
   if(!state.final) throw new Error('Итоговый график ещё не сформирован.');
   return withDoctorNames(state).final.doctors.flatMap(d=>d.periods.map((p,i)=>({name:d.name,part:i+1,start:p.start,end:p.end,days:leaveDays(p.start,p.end),span:span(p.start,p.end),source:p.source}))).sort((a,b)=>a.name.localeCompare(b.name,'ru')||a.start.localeCompare(b.start));

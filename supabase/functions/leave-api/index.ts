@@ -17,7 +17,7 @@ async function authenticate(token:string,kind='access'){
  if(!/^[a-f0-9]{64}$/.test(token))return null;
  const rows=await db('leave2027_access?token=eq.'+encoded(token)+'&kind=eq.'+kind+'&select=doctor_id');return rows[0]?.doctor_id||null;
 }
-function visible(state:any,actor:string){const copy=structuredClone(state);copy.events=copy.events.filter((e:any)=>e.to.includes(actor));return copy;}
+function visible(state:any,actor:string){const copy=structuredClone(state);copy.events=copy.events.filter((e:any)=>e.to.includes(actor)&&!e.supersededBy);return copy;}
 function goodPush(s:any){try{const u=new URL(s.endpoint);return u.protocol==='https:'&&(u.hostname==='fcm.googleapis.com'||u.hostname==='updates.push.services.mozilla.com'||u.hostname.endsWith('.push.apple.com')||u.hostname==='wns2-par02p.notify.windows.com'||u.hostname.endsWith('.notify.windows.com'))&&/^[A-Za-z0-9_-]{80,100}$/.test(s.keys.p256dh)&&/^[A-Za-z0-9_-]{20,30}$/.test(s.keys.auth);}catch{return false;}}
 async function flush(){
  const config=await vapid();const jobs=await db('leave2027_outbox?sent_at=is.null&attempts=lt.5&order=created_at.asc&limit=50');let sent=0;
@@ -88,3 +88,4 @@ Deno.serve(async req=>{
   return json({error:'Unknown action'},400);
  }catch(e){const message=e instanceof Error?e.message:'Request failed';return json({error:message.startsWith('Database')?'Сервер временно недоступен. Попробуйте ещё раз.':message},400);}
 });
+

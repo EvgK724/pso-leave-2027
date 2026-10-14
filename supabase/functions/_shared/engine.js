@@ -3,7 +3,7 @@ export const START = '2027-01-01', END = '2027-12-31';
 export const DEADLINE = '2026-10-31';
 export const BASE_DAYS = 42, MAX_PART = 14, MAX_CONTINUOUS = 21;
 export const MAX_CARRYOVER_OVERLAP = 3, MAX_SIMULTANEOUS_DOCTORS = 2;
-export const MAX_LEONARD_OVERLAP = 5, MAX_SUMMER_DAYS = 21;
+export const MAX_SUMMER_DAYS = 21;
 export const SUMMER_START = '2027-05-01', SUMMER_END = '2027-09-30';
 export const PEOPLE = [
   ['klepikov','Клепиков Е.Ю.'],['kardashina','Кардашина К.К.'],['lekerova','Лекерова Д.С.'],
@@ -87,7 +87,7 @@ export function collisions(state,doctorId,p,excludeId=null) {
 }
 export function overlapCheck(doctors,focus=null) {
   const entries=doctors.flatMap(d=>d.periods.map(p=>({doctor:d.id,name:d.name,period:p})));
-  const groups=[],groupFor=new Map(),leonardPairs=new Map(),allDates=new Set(),focusDates=new Set(),focusOthers=new Set();
+  const groups=[],groupFor=new Map(),allDates=new Set(),focusDates=new Set(),focusOthers=new Set();
   const asConflicts=items=>[...new Set(items)].filter(e=>e.period!==focus).map(e=>({doctor:e.doctor,name:e.name,...e.period}));
   const result=(error=null,conflicts=[])=>({error,conflicts,overlapDays:focusDates.size,overlaps:asConflicts(focusOthers),dates:[...allDates].sort()});
   // The limit applies to simultaneous absence on each calendar date, including holidays.
@@ -117,29 +117,12 @@ export function overlapCheck(doctors,focus=null) {
     for(const day of shared){allDates.add(day);if(p===focus||q===focus)focusDates.add(day);}
     if(p===focus)focusOthers.add(b);if(q===focus)focusOthers.add(a);
     const pair=[a.doctor,b.doctor];
-    const full=pair.includes('davydova')||(pair.includes('khamatnurova')&&(pair.includes('alekeshova')||pair.includes('leonard')));
+    const full=pair.includes('davydova')||pair.includes('leonard')||(pair.includes('khamatnurova')&&pair.includes('alekeshova'));
     if(full)continue;
-    if(pair.includes('leonard')){
-      const other=a.doctor==='leonard'?b:a;
-      if(!leonardPairs.has(other.doctor))leonardPairs.set(other.doctor,{name:other.name,dates:new Set(),entries:new Set()});
-      const overlap=leonardPairs.get(other.doctor);
-      for(const day of shared)overlap.dates.add(day);
-      overlap.entries.add(a);overlap.entries.add(b);
-      continue;
-    }
     if(p.source===q.source)return result(`Эти даты уже заняты. Отпуска за ${p.source} год этих врачей не могут пересекаться.`,asConflicts([a,b]));
     const carry=p.source==='2026'?a:b,other=carry===a?b:a,group=groupFor.get(carry);
     for(const day of shared)group.dates.add(day);
     group.others.add(other);
-  }
-  // Combine adjacent intersections across all parts and both sources for each doctor pair.
-  for(const overlap of leonardPairs.values()){
-    let previous=null,run=0;
-    for(const day of [...overlap.dates].sort()){
-      run=previous&&day===addDays(previous,1)?run+1:1;
-      if(run>MAX_LEONARD_OVERLAP)return result(`${overlap.name}: непрерывное пересечение с Леонард Т.В. превышает 5 календарных дней. Соседние части за 2027 год и из остатка 2026 года считаются вместе.`,asConflicts(overlap.entries));
-      previous=day;
-    }
   }
   for(const g of groups)if(g.dates.size>MAX_CARRYOVER_OVERLAP)return result(`${g.name}: пересечение остатка с 2026 года составляет ${g.dates.size} календ. дн. Допустимо не более 3 календарных дней на непрерывный период остатка, включая соседние части.`,asConflicts([...g.entries,...g.others]));
   return result();

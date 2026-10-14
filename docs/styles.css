@@ -9,10 +9,32 @@
 
 /* Native iOS Dynamic Type supplies the root size; all interface text follows it. */
 @supports(font:-apple-system-body){@media(hover:none){:root{font:-apple-system-body;line-height:1.5;--text-scale:1.0625}}}
-.topbar,.section-top,.metrics{flex-wrap:wrap}.identity{min-width:0}.grid-two>*,.help-grid>*{min-width:0}.doctor-row .name,.doctor-row .sub{overflow-wrap:anywhere}.calendar-scroll{overflow-x:auto}.weekdays,.month-grid{min-width:13.75em}.day{min-height:2.7em}.month-list{grid-template-columns:repeat(auto-fit,minmax(3.4em,1fr))}.field input{min-height:3em}.field input,.field select{line-height:1.5}.bottom-nav a>span{height:auto}.section-top h2{min-width:0}
+.topbar,.section-top,.metrics{flex-wrap:wrap}.identity{min-width:0}.grid-two>*,.help-grid>*{min-width:0}.doctor-row .name,.doctor-row .sub{overflow-wrap:anywhere}.calendar-scroll{min-width:0;overflow:visible}.weekdays,.month-grid{min-width:0;width:100%}.day{min-height:max(44px,2.7em)}.month-list{grid-template-columns:repeat(auto-fit,minmax(3.4em,1fr))}.field input{min-height:3em}.field input,.field select{line-height:1.5}.bottom-nav a>span{height:auto}.section-top h2{min-width:0}
 
 .doctor-row{grid-template-columns:auto minmax(0,1fr);column-gap:13px;row-gap:4px}.doctor-row .count{grid-column:2;text-align:left;white-space:normal;display:flex;align-items:baseline;gap:.5em;flex-wrap:wrap}.doctor-row .count small{display:inline}.doctor-row>div{min-width:0}
 
 h1,h2,h3{overflow-wrap:anywhere}.avatar{min-width:max(38px,2.1em);height:max(38px,2.1em)}.brand-icon{width:max(44px,1.5em);height:max(44px,1.5em);flex-shrink:0}.period-index{width:max(34px,1.9em);height:max(38px,2.2em)}
 
+/* Keep all seven dates visible with iOS Dynamic Type and use the available phone width. */
+.calendar-head{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;gap:8px}
+.calendar-head .arrow{width:44px;min-height:44px}
+.calendar-head h2{display:flex;flex-wrap:wrap;justify-content:center;column-gap:.3em;line-height:1.25;overflow-wrap:normal}
+.calendar-month,.calendar-year{white-space:nowrap}
+.day,.day-pad{aspect-ratio:auto}
+.day{width:100%}
+.day>span{white-space:nowrap;font-variant-numeric:tabular-nums}
+.day small{white-space:normal;overflow-wrap:anywhere;line-height:1.2}
+@media(max-width:700px){
+  .app-shell{padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
+  .calendar-card{padding:16px 12px}
+  .weekdays,.month-grid{gap:3px}
+}
+@media(max-width:360px){
+  .calendar-head h2{grid-column:1 / -1;grid-row:1}
+  .calendar-head .arrow{grid-row:2}
+  .calendar-head #prev-month{grid-column:1}
+  .calendar-head #next-month{grid-column:3}
+}
+
 .month-overlaps{margin-top:18px;padding:15px;border:1px solid #824653;border-radius:12px;background:#331d2855;color:#ff9da5;font-size:calc(var(--ui-size) * 0.9375);line-height:1.5;overflow-wrap:anywhere}.month-overlaps h3{color:inherit;margin-bottom:10px}.month-overlaps ul{list-style:none;margin:0;padding:0}.month-overlaps li{margin:0}.month-overlaps li+li{border-top:1px solid #82465380;margin-top:12px;padding-top:12px}.month-overlaps strong,.month-overlaps span{display:block}.month-overlaps strong{font-weight:600;margin-bottom:4px}
+
